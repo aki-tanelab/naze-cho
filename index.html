@@ -123,6 +123,9 @@ h1 .q, .fab .q { color: var(--amber); }
 .checks { display: grid; gap: 8px; }
 .checks label { font-weight: 400; display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
 .checks input { width: 20px; height: 20px; flex: none; margin-top: 2px; accent-color: var(--amber); }
+.tplbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.tplbar button { appearance: none; font: inherit; font-weight: 700; font-size: 14px; border-radius: 999px; padding: 8px 14px; cursor: pointer; border: 1px solid var(--amber); background: var(--card); color: var(--amber); }
+.tplbar button.add { border-style: dashed; border-color: var(--muted); color: var(--muted); font-weight: 400; }
 .pick-list { display: grid; gap: 10px; padding-top: 12px; }
 .tpl-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
 .tpl-row b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -341,6 +344,9 @@ function render() {
     return !q || Object.values(r).some(v => typeof v === "string" && v.toLowerCase().includes(q));
   });
   const list = $("list"); list.replaceChildren();
+  if (t === "customs" && state.templates.length) list.append(el("div", { class: "tplbar" },
+    ...state.templates.map(x => el("button", { onclick: () => openSheet("customs", null, x), text: "+ " + x.name })),
+    el("button", { class: "add", onclick: () => openMenu("tpl"), text: "型を追加" })));
   if (!state.data[t].length) { list.append(emptyState(t)); return; }
   if (!rows.length) { list.append(el("p", { class: "example", text: "当てはまる記録がありません。" })); return; }
   for (const r of rows) {
@@ -680,7 +686,7 @@ function tplSection() {
   const st = el("div", { class: "status", id: "tpl-status" });
   return el("section", { id: "tpl-section" },
     el("h3", { text: "自分の型" }),
-    el("p", { text: "「型で書く」タブで使う型です。この端末の中にだけ保存されます。下の形で書いて(または貼って)、「型を保存」を押してください。" }),
+    el("p", { text: "「型で書く」タブで使う型です。この端末の中にだけ保存されます。下の形で書いて(または貼って)、「型を保存」を押してください。いくつかの型を、まとめて貼っても大丈夫です。同じ名前の型は、上書きします。" }),
     el("pre", { text: "型: 型の名前\n説明: (なくてもいい)\n欄: 見出し | ヒント | 比率の印(なくてもいい)\n確認: 書いた後に確かめること\n\n「欄」は何行でも。比率の印を同じ言葉にした欄どうしで、字数の割合を出します。" }),
     ...state.templates.map(x => el("div", { class: "tpl-row" },
       el("b", { text: x.name }), el("span", { class: "hint", text: `欄${x.fields.length}・確認${x.checks.length}` }),
@@ -695,9 +701,20 @@ function tplSection() {
 }
 async function saveTemplate() {
   const text = $("tpl-text").value.trim();
+  const blocks = text.split(/\n(?=\s*[-・*•]?\s*(?:型|名前)\s*[:：])/).map(b => b.trim()).filter(Boolean);
+  if (!state.tplEdit && blocks.length > 1) {
+    const tpls = blocks.map(b => [b, parseTemplate(b)]).filter(([, x]) => x);
+    if (!tpls.length) { $("tpl-status").textContent = "「型: 名前」と、「欄: 見出し」を1つ以上書いてください。"; return; }
+    const now = new Date().toISOString();
+    for (const [b, x] of tpls) {
+      const same = state.templates.find(y => y.name === x.name);
+      await put("templates", { ...x, text: b, id: same?.id || "t" + newId(), createdAt: same?.createdAt || now, updatedAt: now });
+    }
+    await markChanged(); await load(); renderMenu(); toast(`型を${tpls.length}つ保存しました`); return;
+  }
   const tpl = parseTemplate(text);
   if (!tpl) { $("tpl-status").textContent = "「型: 名前」と、「欄: 見出し」を1つ以上書いてください。"; return; }
-  const cur = state.tplEdit;
+  const cur = state.tplEdit || state.templates.find(y => y.name === tpl.name);
   await put("templates", { ...tpl, text, id: cur?.id || "t" + newId(), createdAt: cur?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
   state.tplEdit = null; await markChanged(); await load(); renderMenu(); toast(`型「${tpl.name}」を保存しました`);
 }
