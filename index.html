@@ -205,7 +205,9 @@ const SCHEMA = {
       { later: "深める(記事にすると決めたら)" },
       { k: "ronten", label: "論点", hint: "記事で答えたい、大きな問い", type: "area" },
       { k: "common", label: "よくある結論", hint: "みんなが言いそうな答え。これは結論にしない", type: "area" },
-      { k: "sub", label: "サブ論点(仮説)", hint: "答えの候補をいくつも。調べて新しい「なぜ」が出たら足す", type: "area" },
+      { k: "sub", label: "サブ論点(仮説)", hint: "答えの候補をいくつも。調べられる小さな問い(いつ? その前に何が?)に分ける", type: "area" },
+      { k: "ifTrue", label: "正しければ見つかる事実", hint: "仮説が合っているなら、どんな記録が出てくるはず?", type: "area" },
+      { k: "ifFalse", label: "出てきたら見直す事実", hint: "これが出たら仮説を立て直す、と先に決めておく。崩れたら見落としに気づくチャンス", type: "area" },
       { k: "task", label: "タスク設計", hint: "確かめるために調べること・聞く人。立場の違う人や、周りの資料も", type: "area" },
       { k: "deadline", label: "期限", hint: "例: 3日(1日目 探す/2日目 集める/3日目 読む)", type: "area" },
       { k: "ready", type: "ready" }
@@ -284,6 +286,7 @@ function parseTemplate(text) {
       if (label) tpl.fields.push({ label, hint, tag });
     }
     else if ((m = line.match(/^確認\s*[:：]\s*(.+)$/))) tpl.checks.push(m[1].trim());
+    else if ((m = raw.match(/^\s*依頼\s*[:：]\s?(.*)$/))) (tpl.ask ||= []).push(m[1].trimEnd());
   }
   return tpl.name && tpl.fields.length ? tpl : null;
 }
@@ -573,7 +576,14 @@ function reviewBox() {
   return el("div", { class: "box" },
     el("h3", { text: "Claudeに見てもらう" }),
     el("div", { class: "hint", text: "型と確認の基準と、書いた文をまとめてコピーします。Claudeのアプリに貼ってください。" }),
-    el("div", { class: "btns" }, el("button", { type: "button", class: "ghost", onclick: () => copy(reviewPrompt(collect(), state.editing.S), "コピーしました。Claudeに貼ってください"), text: "Claudeに見てもらう文をコピー" })));
+    el("div", { class: "btns" },
+      el("button", { type: "button", class: "ghost", onclick: () => copy(reviewPrompt(collect(), state.editing.S), "コピーしました。Claudeに貼ってください"), text: "Claudeに見てもらう文をコピー" }),
+      state.editing.S.tpl.ask?.length ? el("button", { type: "button", class: "ghost", onclick: () => copy(askPrompt(collect(), state.editing.S), "コピーしました。Claudeに貼ってください"), text: "Claudeに頼む文をコピー" }) : null));
+}
+function askPrompt(d, S) {
+  const vals = { 題: d.title };
+  S.tpl.fields.forEach((f, i) => { vals[f.label] = d["f" + i]; });
+  return S.tpl.ask.join("\n").replace(/\{([^}]+)\}/g, (all, k) => (vals[k] || "").trim() || `[${k}]`);
 }
 function reviewPrompt(d, S) {
   const body = S.tpl.fields.map((f, i) => `【${f.label}】${f.tag ? "(" + f.tag + ")" : ""}\n${d["f" + i] || "(未記入)"}`).join("\n\n");
@@ -788,7 +798,7 @@ function tplSection() {
   return el("section", { id: "tpl-section" },
     el("h3", { text: "自分の型" }),
     el("p", { text: "「型で書く」タブで使う型です。この端末の中にだけ保存されます。下の形で書いて(または貼って)、「型を保存」を押してください。いくつかの型を、まとめて貼っても大丈夫です。同じ名前の型は、上書きします。" }),
-    el("pre", { text: "型: 型の名前\n説明: (なくてもいい)\n欄: 見出し | ヒント | 比率の印(なくてもいい)\n確認: 書いた後に確かめること\n\n「欄」は何行でも。比率の印を同じ言葉にした欄どうしで、字数の割合を出します。" }),
+    el("pre", { text: "型: 型の名前\n説明: (なくてもいい)\n欄: 見出し | ヒント | 比率の印(なくてもいい)\n確認: 書いた後に確かめること\n依頼: Claudeに頼む文(何行でも。{欄の見出し}で中身が入る)\n\n「欄」は何行でも。比率の印を同じ言葉にした欄どうしで、字数の割合を出します。" }),
     ...state.templates.map(x => el("div", { class: "tpl-row" },
       el("b", { text: x.name }), el("span", { class: "hint", text: `欄${x.fields.length}・確認${x.checks.length}` }),
       el("button", { class: "ghost", onclick: () => { state.tplEdit = x; renderMenu(); $("tpl-text").focus(); }, text: "直す" }),

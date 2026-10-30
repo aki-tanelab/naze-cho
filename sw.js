@@ -1,6 +1,6 @@
 // アプリの画面をこの端末に保存して、電波がなくても開けるようにする。
 // 画面を直したら、VERSION を上げる。
-const VERSION = "naze-cho-v6";
+const VERSION = "naze-cho-v7";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
