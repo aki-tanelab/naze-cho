@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>なぜ?帳</title>
+<meta name="description" content="違和感を「なぜ?」で残すメモと、記事を分解するメモ。記録はこの端末の中だけに保存します。">
+<meta name="theme-color" content="#1f2740">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+/* Layout: a detective's pocket notebook. One column, list of cases, a full-height sheet for writing. */
+:root {
+  --paper: #f6f3ee; --card: #fffdf9; --ink: #1c2233; --muted: #6b6a73; --line: #e4ded4;
+  --amber: #a8640c; --amber-soft: #f3e4cc; --navy: #1f2740; --on-navy: #f4efe6; --danger: #b3261e;
+  --display: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Serif CJK JP", serif;
+  --body: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", "Noto Sans CJK JP", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #161a26; --card: #1e2333; --ink: #ece7de; --muted: #a29fa8; --line: #2f3548;
+    --amber: #e6a54a; --amber-soft: #3a3020; --navy: #0f1320; --on-navy: #f4efe6; --danger: #f2867e;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+[hidden] { display: none !important; }
+.wrap { max-width: 640px; margin: 0 auto; }
+header { padding-block: 20px 8px; display: flex; gap: 12px; align-items: flex-end; justify-content: space-between; }
+header > div { display: grid; gap: 4px; min-width: 0; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; color: var(--amber); font-weight: 700; }
+h1 { font-family: var(--display); font-size: 30px; margin: 0; line-height: 1.2; }
+h1 .q, .fab .q { color: var(--amber); }
+.lede { color: var(--muted); font-size: 13px; margin: 0; }
+.menu-btn { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 13px; border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+
+.tabs { display: flex; gap: 6px; margin-top: 14px; border-bottom: 1px solid var(--line); }
+.tab { appearance: none; border: 0; background: none; font: inherit; font-weight: 700; color: var(--muted);
+  padding: 10px 12px; border-bottom: 2px solid transparent; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--ink); border-color: var(--amber); }
+.tab .n { font-weight: 500; font-size: 12px; margin-left: 4px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.tools { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+.tools input[type=search], .tools select { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+.tools input[type=search] { flex: 1 1 180px; min-width: 0; }
+
+.notice { background: var(--amber-soft); color: var(--ink); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.notice .ghost { padding: 4px 12px; }
+.list { display: grid; gap: 10px; }
+.item { display: grid; gap: 4px; text-align: left; width: 100%; font: inherit; color: inherit; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.item:hover { border-color: var(--amber); }
+.item .row { display: flex; gap: 10px; align-items: flex-start; }
+.item .txt { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.item .t { font-weight: 700; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.item .sub { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); }
+.chip.done { background: var(--navy); color: var(--on-navy); }
+.dots { letter-spacing: 1px; color: var(--amber); }
+.thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; flex: none; }
+
+.empty { border: 1px dashed var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 8px; }
+.empty h3 { font-family: var(--display); margin: 0; font-size: 18px; }
+.empty ol { margin: 0; padding-left: 1.3em; }
+.example { font-size: 13px; color: var(--muted); }
+
+.fab { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  background: var(--navy); color: var(--on-navy); border: 0; border-radius: 999px; font: inherit; font-weight: 700;
+  padding: 14px 26px; font-size: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.25); cursor: pointer; white-space: nowrap; z-index: 5; }
+.fab .q { font-family: var(--display); }
+
+.sheet { position: fixed; inset: 0; background: var(--paper); overflow-y: auto; z-index: 20;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+.bar { position: sticky; top: 0; background: var(--paper); display: flex; align-items: center; gap: 10px;
+  padding-top: calc(10px + env(safe-area-inset-top, 0px)); padding-bottom: 10px; border-bottom: 1px solid var(--line); z-index: 1; }
+.bar h2 { font-size: 16px; margin: 0; flex: 1; }
+.icon-btn { appearance: none; border: 0; background: none; font: inherit; font-size: 22px; color: var(--muted); cursor: pointer; padding: 4px 8px; line-height: 1; }
+.save { appearance: none; border: 0; background: var(--amber); color: #fff; font: inherit; font-weight: 700; border-radius: 999px; padding: 8px 20px; cursor: pointer; }
+.save:disabled { opacity: .5; cursor: default; }
+.form { max-width: 640px; margin: 0 auto; display: grid; gap: 4px; padding-top: 8px; }
+.field { display: grid; gap: 4px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+.field label, .field .lbl { font-weight: 700; font-size: 14px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.req { font-size: 11px; color: var(--amber); font-weight: 700; }
+.hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+.field textarea, .field input[type=text], .field input[type=url], .field select {
+  font: inherit; font-size: 16px; width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--card); color: var(--ink); }
+.field textarea { min-height: 72px; resize: vertical; }
+.field textarea.big { min-height: 140px; }
+.later { font-size: 12px; color: var(--muted); padding: 12px 0 0; font-weight: 700; letter-spacing: .04em; }
+.photos { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.photos figure { margin: 0; position: relative; }
+.photos img { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; display: block; }
+.photos .x { position: absolute; top: -6px; right: -6px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--ink); color: var(--paper); font-size: 13px; cursor: pointer; }
+.pick { display: inline-flex; align-items: center; justify-content: center; width: 84px; height: 84px; border: 1px dashed var(--muted); border-radius: 8px; color: var(--muted); font-size: 12px; cursor: pointer; text-align: center; }
+.pick input { display: none; }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; margin-top: 12px; }
+.box h3 { margin: 0; font-size: 14px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ghost { appearance: none; border: 1px solid var(--amber); color: var(--amber); background: none; font: inherit; font-weight: 700; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.ghost:disabled { opacity: .5; cursor: default; }
+.danger-zone { padding-top: 20px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.del { appearance: none; border: 0; background: none; color: var(--danger); font: inherit; cursor: pointer; padding: 6px 0; }
+.status { font-size: 12px; color: var(--muted); min-height: 1.5em; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--paper); padding: 8px 16px; border-radius: 999px; font-size: 13px; z-index: 40; max-width: calc(100% - 32px); }
+.menu p { margin: 0; font-size: 13px; color: var(--muted); }
+.menu section { display: grid; gap: 8px; padding-block: 14px; border-bottom: 1px solid var(--line); }
+.menu h3 { margin: 0; font-size: 15px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">違和感を「なぜ?」に変えて残す</div>
+      <h1>なぜ<span class="q">?</span>帳</h1>
+      <p class="lede">現場ではタイトルときっかけだけ。残りの欄は、帰ってから。</p>
+    </div>
+    <button class="menu-btn" id="open-menu">書き出し・保存</button>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-memos" aria-selected="true">問い<span class="n" id="n-memos"></span></button>
+    <button class="tab" role="tab" id="tab-articles" aria-selected="false">記事の分解<span class="n" id="n-articles"></span></button>
+  </div>
+
+  <div class="tools">
+    <input type="search" id="q" placeholder="キーワードで探す" aria-label="キーワードで探す">
+    <select id="filter" aria-label="状態で絞り込む"></select>
+  </div>
+
+  <div id="msg" class="notice" hidden></div>
+  <div id="list" class="list"></div>
+</div>
+
+<button class="fab" id="fab"></button>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="bar">
+    <button class="icon-btn" id="close" aria-label="閉じる">×</button>
+    <h2 id="sheet-title">記録を追加</h2>
+    <button class="save" id="save">保存</button>
+  </div>
+  <form class="form" id="form" autocomplete="off"></form>
+</div>
+
+<div class="sheet" id="menu" hidden>
+  <div class="bar">
+    <button class="icon-btn" id="close-menu" aria-label="閉じる">×</button>
+    <h2>書き出し・保存</h2>
+  </div>
+  <div class="form menu" id="menu-body"></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+const MEMO_STATUS = ["メモ", "調べ中", "熟成中", "記事にした", "ボツ"];
+const SCHEMA = {
+  memos: {
+    label: "問い", fab: "なぜ?を書く",
+    fields: [
+      { k: "title", label: "タイトル", req: true, hint: "「なぜ〜なのか?」の形で。感想ではなく問いにする", type: "text", ph: "例: なぜ浅草のドラッグストアの店先は、お菓子ばかりなのか?" },
+      { k: "trigger", label: "きっかけ", hint: "何を見て、どこが引っかかったか。一言でいい", type: "area", ph: "例: 仲見世のドラッグストア。薬じゃなくてキットカットとこけしが並んでいた" },
+      { k: "photos", label: "写真", hint: "撮りたくなった・言いたくなった・投稿したくなったもの", type: "photos" },
+      { later: "ここから下は、帰ってからでOK" },
+      { k: "hypothesis", label: "今の仮説", hint: "答えの候補。外れていい。いくつ書いてもいい", type: "area" },
+      { k: "viewpoint", label: "視点", hint: "自分の立場(住んでいる・親として・働く人として…)から、どう見えるか", type: "area" },
+      { k: "data", label: "データ・事例", hint: "数字、資料、ほかの街や店の例。Xのリプ欄やYouTubeのコメント欄も手がかり", type: "area" },
+      { k: "opinion", label: "自分の意見", hint: "今の時点で思うこと", type: "area" },
+      { k: "action", label: "今後のアクション", hint: "確かめるには何を調べる・誰に聞く? 疑問形で3つ", type: "area", ph: "・いつから増えた?\n・ほかの観光地でも同じ?\n・地元の人はどう思っている?" },
+      { k: "status", label: "状態", type: "select", options: MEMO_STATUS }
+    ],
+    listSub: d => d.trigger || d.hypothesis || "",
+    countKeys: ["title", "trigger", "hypothesis", "viewpoint", "data", "opinion", "action"]
+  },
+  articles: {
+    label: "記事の分解", fab: "記事を分解する",
+    fields: [
+      { k: "title", label: "記事のタイトル", req: true, type: "text", ph: "例: 開業1年半で閑散「渋谷・道玄坂通」大苦戦の真因" },
+      { k: "source", label: "書いた人・媒体", type: "text", ph: "例: 谷頭和希さん/東洋経済オンライン" },
+      { k: "url", label: "URL", type: "url" },
+      { k: "summary", label: "要約", hint: "何の記事か、2〜3行", type: "area" },
+      { k: "learning", label: "学び", hint: "知らなかったこと", type: "area" },
+      { k: "mine", label: "自分ならどうするか", hint: "同じ型で、自分なら何を題材にする?", type: "area" },
+      { k: "good", label: "良かった点", hint: "構成を矢印で。例: 事実 → なぜ? → 得意な視点で観察 → 理由 → 結論 → 今後の展望", type: "area" },
+      { k: "question", label: "問い", hint: "記事から出てきた、自分の「なぜ?」", type: "area" },
+      { k: "tryit", label: "試したいこと", hint: "真似したい書き方", type: "area" },
+      { k: "body", label: "本文(Claudeに見てもらうとき用)", hint: "貼っておくと、下のボタンで「Claudeに聞く文」にまとめてコピーできる", type: "area", big: true },
+      { k: "claude", type: "claude" }
+    ],
+    listSub: d => [d.source, d.good].filter(Boolean).join(" ・ "),
+    countKeys: ["summary", "learning", "mine", "good", "question", "tryit"]
+  }
+};
+const LABELS = Object.fromEntries(Object.entries(SCHEMA).map(([t, S]) => [t, Object.fromEntries(S.fields.filter(f => f.k).map(f => [f.k, f.label]))]));
+
+/* ---------- storage (IndexedDB, this device only) ---------- */
+const DB_NAME = "naze-cho", DB_VER = 1;
+let idb;
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      for (const s of ["memos", "articles"]) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: "id" });
+      if (!d.objectStoreNames.contains("photos")) d.createObjectStore("photos");
+      if (!d.objectStoreNames.contains("meta")) d.createObjectStore("meta");
+    };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+function tx(store, mode, fn) {
+  return new Promise((res, rej) => {
+    const t = idb.transaction(store, mode); const s = t.objectStore(store); let out;
+    Promise.resolve(fn(s)).then(v => { out = v; });
+    t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  });
+}
+const req = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const getAll = s => tx(s, "readonly", st => req(st.getAll()));
+const put = (s, v, k) => tx(s, "readwrite", st => { st.put(v, k); });
+const del = (s, k) => tx(s, "readwrite", st => { st.delete(k); });
+const getOne = (s, k) => tx(s, "readonly", st => req(st.get(k)));
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const state = { tab: "memos", data: { memos: [], articles: [] }, editing: null, photos: [], urls: new Map(), meta: {} };
+function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } }
+function lsSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+function fmt(iso, withTime = true) {
+  if (!iso) return ""; const d = new Date(iso); const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}` + (withTime ? ` ${p(d.getHours())}:${p(d.getMinutes())}` : "");
+}
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c);
+  return e;
+}
+let toastTimer;
+function toast(t) { const e = $("toast"); e.textContent = t; e.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { e.hidden = true; }, 2200); }
+async function copy(text, done = "コピーしました") {
+  try { await navigator.clipboard.writeText(text); toast(done); }
+  catch {
+    const ta = el("textarea", { style: "position:fixed;top:0;left:0;opacity:0" }); ta.value = text; document.body.append(ta); ta.select();
+    try { document.execCommand("copy"); toast(done); } catch { toast("コピーできませんでした"); } ta.remove();
+  }
+}
+async function photoURL(id) {
+  if (state.urls.has(id)) return state.urls.get(id);
+  const blob = await getOne("photos", id); if (!blob) return "";
+  const u = URL.createObjectURL(blob); state.urls.set(id, u); return u;
+}
+function setImg(img, id) { photoURL(id).then(u => { if (u) img.src = u; }); return img; }
+
+/* ---------- list ---------- */
+function setTab(t) {
+  state.tab = t;
+  $("tab-memos").setAttribute("aria-selected", t === "memos");
+  $("tab-articles").setAttribute("aria-selected", t === "articles");
+  $("fab").replaceChildren(el("span", { class: "q", text: "+" }), " " + SCHEMA[t].fab);
+  const f = $("filter"); f.replaceChildren();
+  if (t === "memos") { f.hidden = false; f.append(el("option", { value: "", text: "すべての状態" }), ...MEMO_STATUS.map(s => el("option", { value: s, text: s }))); }
+  else f.hidden = true;
+  lsSet("naze-tab", t); render();
+}
+function render() {
+  const t = state.tab, S = SCHEMA[t];
+  $("n-memos").textContent = state.data.memos.length || "";
+  $("n-articles").textContent = state.data.articles.length || "";
+  renderNotice();
+  const q = $("q").value.trim().toLowerCase(), st = t === "memos" ? $("filter").value : "";
+  const rows = state.data[t].filter(r => {
+    if (st && (r.status || "メモ") !== st) return false;
+    return !q || Object.values(r).some(v => typeof v === "string" && v.toLowerCase().includes(q));
+  });
+  const list = $("list"); list.replaceChildren();
+  if (!state.data[t].length) { list.append(emptyState(t)); return; }
+  if (!rows.length) { list.append(el("p", { class: "example", text: "当てはまる記録がありません。" })); return; }
+  for (const r of rows) {
+    const filled = S.countKeys.filter(k => (r[k] || "").trim()).length;
+    const photo = (r.photos || [])[0];
+    const status = t === "memos" ? (r.status || "メモ") : null;
+    list.append(el("button", { class: "item", onclick: () => openSheet(t, r) },
+      el("div", { class: "row" },
+        el("div", { class: "txt" },
+          el("div", { class: "t", text: r.title || "(タイトルなし)" }),
+          S.listSub(r) ? el("div", { class: "sub", text: S.listSub(r) }) : null),
+        photo ? setImg(el("img", { class: "thumb", alt: "" }), photo) : null),
+      el("div", { class: "meta" },
+        status ? el("span", { class: "chip" + (status === "記事にした" ? " done" : ""), text: status }) : null,
+        el("span", { class: "dots", title: `${filled}/${S.countKeys.length}欄`, text: "●".repeat(filled) + "○".repeat(S.countKeys.length - filled) }),
+        el("span", { text: fmt(r.createdAt) }))));
+  }
+}
+function emptyState(t) {
+  if (t === "memos") return el("div", { class: "empty" },
+    el("h3", { text: "帰り道でできる、名探偵の第一歩" }),
+    el("ol", {}, el("li", { text: "「あれれ?」と思ったものを1つ、「なぜ〜なのか?」の形でメモする" }),
+      el("li", { text: "その下に「確かめるには何を調べればいいか」を3つ書く" })),
+    el("div", { class: "example", text: "例: なぜこんなにも日本らしくない浅草になっているのか?(ただの感想「インバウンド向けの店が増えたなあ」を、調べられる問いにしたもの)" }),
+    el("div", { class: "example", text: "下の「+ なぜ?を書く」から、1件目を書けます。" }));
+  return el("div", { class: "empty" },
+    el("h3", { text: "面白い記事を読んだら、6つの欄に分解する" }),
+    el("div", { class: "example", text: "要約/学び/自分ならどうするか/良かった点/問い/試したいこと。「良かった点」は、構成を矢印で書くと型が見えてきます。" }),
+    el("div", { class: "example", text: "下の「+ 記事を分解する」から、1件目を書けます。" }));
+}
+function renderNotice() {
+  const m = $("msg"); m.replaceChildren(); m.hidden = true;
+  const total = state.data.memos.length + state.data.articles.length;
+  if (!total) return;
+  const last = state.meta.lastBackup, changed = state.meta.lastChange;
+  const days = last ? Math.floor((Date.now() - new Date(last)) / 864e5) : null;
+  const all = state.data.memos.concat(state.data.articles);
+  const oldest = Math.min(...all.map(r => new Date(r.createdAt || Date.now()).getTime()));
+  const firstDue = total >= 5 || Date.now() - oldest >= 7 * 864e5;
+  if ((!last && firstDue) || (last && changed > last && days >= 7)) {
+    m.append(el("span", { text: last ? `最後に保存してから${days}日たちました。記録はこの端末の中だけにあります。` : "記録はこの端末の中だけにあります。ときどき、バックアップを保存してください。" }),
+      el("button", { class: "ghost", onclick: openMenu, text: "保存する" }));
+    m.hidden = false;
+  }
+}
+
+/* ---------- sheet ---------- */
+function openSheet(t, row) {
+  const S = SCHEMA[t];
+  const draftKey = "naze-draft-" + t + "-" + (row ? row.id : "new");
+  const draft = lsGet(draftKey);
+  const src = draft || row || {};
+  state.editing = { t, row, draftKey };
+  state.photos = [...(src.photos || [])];
+  $("sheet-title").textContent = row ? S.label + "を編集" : "記録を追加";
+  const form = $("form"); form.replaceChildren();
+  if (draft) form.append(el("div", { class: "notice", text: "保存していない書きかけを戻しました。" }));
+  if (row) form.append(el("div", { class: "status", text: "記録日時 " + fmt(row.createdAt) + (row.updatedAt && row.updatedAt !== row.createdAt ? "/更新 " + fmt(row.updatedAt) : "") }));
+  for (const f of S.fields) {
+    if (f.later) { form.append(el("div", { class: "later", text: f.later })); continue; }
+    if (f.type === "photos") { form.append(photoField(f)); continue; }
+    if (f.type === "claude") { form.append(claudeBox()); continue; }
+    const id = "f-" + t + "-" + f.k;
+    let input;
+    if (f.type === "area") input = el("textarea", { id, name: f.k, placeholder: f.ph || "", class: f.big ? "big" : null });
+    else if (f.type === "select") input = el("select", { id, name: f.k }, ...f.options.map(o => el("option", { value: o, text: o })));
+    else input = el("input", { id, name: f.k, type: f.type === "url" ? "url" : "text", placeholder: f.ph || "" });
+    input.value = src[f.k] || (f.type === "select" ? f.options[0] : "");
+    input.addEventListener("input", onEdit);
+    form.append(el("div", { class: "field" },
+      el("label", { for: id }, f.label, f.req ? el("span", { class: "req", text: "必須" }) : null, f.hint ? el("span", { class: "hint", text: f.hint }) : null),
+      input));
+  }
+  form.append(el("div", { class: "btns", style: "padding-top:14px" },
+    el("button", { type: "button", class: "ghost", onclick: () => copy(toMarkdown(t, { ...(row || {}), ...collect() }), "Markdownでコピーしました"), text: "この記録をMarkdownでコピー" })));
+  if (row) form.append(el("div", { class: "danger-zone", id: "dz" }, el("button", { type: "button", class: "del", onclick: askDelete, text: "この記録を削除" })));
+  form.append(el("div", { class: "status", id: "save-status" }));
+  $("sheet").hidden = false; document.body.style.overflow = "hidden";
+  updateSave();
+  if (!row) setTimeout(() => form.querySelector("input,textarea")?.focus(), 50);
+}
+function collect() {
+  const { t } = state.editing, out = {};
+  for (const f of SCHEMA[t].fields) {
+    if (!f.k || f.type === "photos" || f.type === "claude") continue;
+    out[f.k] = ($("f-" + t + "-" + f.k)?.value ?? "").trim();
+  }
+  if (t === "memos") out.photos = state.photos;
+  return out;
+}
+function onEdit() { lsSet(state.editing.draftKey, collect()); updateSave(); }
+function updateSave() { const { t } = state.editing || {}; $("save").disabled = !t || !($("f-" + t + "-title")?.value || "").trim(); }
+function closeSheet() { $("sheet").hidden = true; document.body.style.overflow = ""; state.editing = null; }
+
+async function markChanged() { state.meta.lastChange = new Date().toISOString(); await put("meta", state.meta.lastChange, "lastChange"); }
+async function save() {
+  if (!state.editing) return;
+  const { t, row, draftKey } = state.editing;
+  const now = new Date().toISOString();
+  const body = { ...collect(), id: row?.id || newId(), createdAt: row?.createdAt || now, updatedAt: now };
+  $("save").disabled = true;
+  try {
+    await put(t, body);
+    if (row) for (const p of row.photos || []) if (!body.photos?.includes(p)) await del("photos", p);
+    await markChanged(); lsSet(draftKey, null); await load(); closeSheet(); toast("保存しました");
+  } catch {
+    $("save-status").textContent = "保存できませんでした。端末の空き容量を確かめて、もう一度「保存」を押してください(書いた内容は残っています)。";
+    $("save").disabled = false;
+  }
+}
+function askDelete() {
+  const dz = $("dz"); dz.replaceChildren(
+    el("span", { text: "本当に削除しますか? 元に戻せません。" }),
+    el("button", { type: "button", class: "del", style: "font-weight:700", onclick: doDelete, text: "削除する" }),
+    el("button", { type: "button", class: "ghost", onclick: () => dz.replaceChildren(el("button", { type: "button", class: "del", onclick: askDelete, text: "この記録を削除" })), text: "やめる" }));
+}
+async function doDelete() {
+  const { t, row, draftKey } = state.editing;
+  await del(t, row.id); for (const p of row.photos || []) await del("photos", p);
+  await markChanged(); lsSet(draftKey, null); await load(); closeSheet(); toast("削除しました");
+}
+
+/* photos */
+function photoField(f) {
+  return el("div", { class: "field" },
+    el("div", { class: "lbl" }, f.label, el("span", { class: "hint", text: f.hint })),
+    drawPhotos(el("div", { class: "photos", id: "photos" })),
+    el("div", { class: "status", id: "photo-status" }));
+}
+function drawPhotos(box = $("photos")) {
+  box.replaceChildren();
+  state.photos.forEach((id, i) => box.append(el("figure", {},
+    setImg(el("img", { alt: "写真 " + (i + 1) }), id),
+    el("button", { type: "button", class: "x", "aria-label": "この写真を外す", text: "×", onclick: () => { state.photos.splice(i, 1); drawPhotos(); onEdit(); } }))));
+  const inp = el("input", { type: "file", accept: "image/*", multiple: true });
+  inp.addEventListener("change", () => addPhotos(inp.files));
+  box.append(el("label", { class: "pick" }, "写真を追加", inp));
+  return box;
+}
+async function shrink(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const s = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(b => r(b || file), "image/jpeg", 0.8));
+  } catch { return file; }
+}
+async function addPhotos(files) {
+  for (const file of files) {
+    try { const id = "p" + newId(); await put("photos", await shrink(file), id); state.photos.push(id); }
+    catch { $("photo-status").textContent = "写真を保存できませんでした。端末の空き容量を確かめてください。"; }
+  }
+  drawPhotos(); onEdit();
+}
+
+/* ask Claude (copy a prompt to paste into the Claude app) */
+function claudeBox() {
+  return el("div", { class: "box" },
+    el("h3", { text: "Claudeと比べる" }),
+    el("div", { class: "hint", text: "先に自分で6つの欄を書いてから。本文と自分のメモを1つの文にまとめてコピーするので、Claudeのアプリに貼ってください。" }),
+    el("div", { class: "btns" }, el("button", { type: "button", class: "ghost", onclick: () => {
+      const d = collect();
+      if (!d.body) { toast("先に本文を貼ってください"); return; }
+      copy(claudePrompt(d), "コピーしました。Claudeに貼ってください");
+    }, text: "Claudeに聞く文をコピー" })));
+}
+function claudePrompt(d) {
+  const mine = ["summary", "learning", "mine", "good", "question", "tryit"].map(k => `【${LABELS.articles[k]}】${d[k] || "(未記入)"}`).join("\n");
+  return `次の記事を、6つの欄で分解してください。私は、面白い記事の構成を真似して、自分の記事を書く練習をしています。
+
+出力の形(見出しはこのまま、各欄は2〜4行で短く):
+【要約】
+【学び】
+【自分ならどうするか】(私は、日常の違和感から「なぜ?」を立てるのが得意。題材の案を1つ)
+【良かった点】構成を「→」でつないで書く(例: 事実 → なぜ? → 観察 → 理由 → 結論 → 展望)
+【問い】この記事から出てくる、次に調べられる「なぜ〜なのか?」を2つ
+【試したいこと】
+最後に【私のメモとの違い】として、私のメモと比べて気づいた点を2〜3行。良いところも書いてください。
+
+記事: ${d.title}${d.source ? "(" + d.source + ")" : ""}${d.url ? "\n" + d.url : ""}
+---
+${d.body}
+---
+
+私のメモ:
+${mine}`;
+}
+
+/* ---------- export / backup ---------- */
+function toMarkdown(t, r) {
+  const S = SCHEMA[t], L = LABELS[t];
+  const lines = [`## ${r.title || "(タイトルなし)"}`, "", `- 種類: ${S.label}` + (r.status ? ` / 状態: ${r.status}` : ""), `- 記録日時: ${fmt(r.createdAt) || fmt(new Date().toISOString())}`];
+  if (r.source) lines.push(`- 書いた人・媒体: ${r.source}`);
+  if (r.url) lines.push(`- URL: ${r.url}`);
+  if (r.photos?.length) lines.push(`- 写真: ${r.photos.length}枚(アプリ内)`);
+  for (const f of S.fields) {
+    if (!f.k || ["title", "source", "url", "status", "photos", "claude", "body"].includes(f.k)) continue;
+    if ((r[f.k] || "").trim()) lines.push("", `### ${L[f.k]}`, r[f.k].trim());
+  }
+  return lines.join("\n");
+}
+function allMarkdown(t) {
+  const rows = state.data[t];
+  return `# なぜ?帳 ${SCHEMA[t].label}(${fmt(new Date().toISOString(), false)} 書き出し・${rows.length}件)\n\n` + rows.map(r => toMarkdown(t, r)).join("\n\n---\n\n");
+}
+const blobToData = b => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
+async function dataToBlob(u) { return (await fetch(u)).blob(); }
+async function backup(withPhotos) {
+  const out = { app: "naze-cho", version: 1, exportedAt: new Date().toISOString(), memos: state.data.memos, articles: state.data.articles, photos: {} };
+  if (withPhotos) {
+    const ids = new Set(state.data.memos.flatMap(r => r.photos || []));
+    for (const id of ids) { const b = await getOne("photos", id); if (b) out.photos[id] = await blobToData(b); }
+  }
+  const blob = new Blob([JSON.stringify(out)], { type: "application/json" });
+  const name = `naze-cho_${fmt(out.exportedAt, false).replaceAll(".", "-")}.json`;
+  const file = new File([blob], name, { type: "application/json" });
+  let ok = false;
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); ok = true; } catch (e) { if (e?.name === "AbortError") return; } }
+  if (!ok) { const a = el("a", { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove(); }
+  state.meta.lastBackup = out.exportedAt; await put("meta", out.exportedAt, "lastBackup");
+  toast("バックアップを保存しました"); renderMenu(); render();
+}
+async function restore(file) {
+  const st = $("restore-status");
+  try {
+    const d = JSON.parse(await file.text());
+    if (d.app !== "naze-cho") throw new Error("not ours");
+    let n = 0;
+    for (const t of ["memos", "articles"]) for (const r of d[t] || []) {
+      const cur = state.data[t].find(x => x.id === r.id);
+      if (!cur || (r.updatedAt || "") > (cur.updatedAt || "")) { await put(t, r); n++; }
+    }
+    for (const [id, u] of Object.entries(d.photos || {})) if (!(await getOne("photos", id))) await put("photos", await dataToBlob(u), id);
+    await markChanged(); await load(); st.textContent = `${n}件を戻しました(同じ記録は、新しいほうを残しています)。`;
+  } catch { st.textContent = "このファイルは読み込めませんでした。なぜ?帳で保存したバックアップ(.json)を選んでください。"; }
+}
+function openMenu() { renderMenu(); $("menu").hidden = false; document.body.style.overflow = "hidden"; }
+function closeMenu() { $("menu").hidden = true; document.body.style.overflow = ""; }
+function renderMenu() {
+  const inp = el("input", { type: "file", accept: "application/json,.json", style: "display:none" });
+  inp.addEventListener("change", () => inp.files[0] && restore(inp.files[0]));
+  $("menu-body").replaceChildren(
+    el("section", {},
+      el("h3", { text: "Markdownでコピー" }),
+      el("p", { text: "Claudeに貼って、整理や記事化の相談に使えます。写真は入りません。" }),
+      el("div", { class: "btns" },
+        el("button", { class: "ghost", onclick: () => copy(allMarkdown("memos")), disabled: !state.data.memos.length, text: `問いを全部(${state.data.memos.length}件)` }),
+        el("button", { class: "ghost", onclick: () => copy(allMarkdown("articles")), disabled: !state.data.articles.length, text: `記事の分解を全部(${state.data.articles.length}件)` }))),
+    el("section", {},
+      el("h3", { text: "バックアップを保存" }),
+      el("p", { text: "記録はこの端末の中だけにあります。ブラウザのデータを消したり機種変更したりすると消えるので、ときどき保存して、Googleドライブなどに置いてください。" }),
+      el("p", { text: state.meta.lastBackup ? "最後に保存: " + fmt(state.meta.lastBackup) : "まだ一度も保存していません。" }),
+      el("div", { class: "btns" },
+        el("button", { class: "ghost", onclick: () => backup(true), text: "写真ごと保存" }),
+        el("button", { class: "ghost", onclick: () => backup(false), text: "文字だけ保存(軽い)" }))),
+    el("section", {},
+      el("h3", { text: "バックアップから戻す" }),
+      el("p", { text: "機種変更したときや、別のブラウザに移すときに。今ある記録は消さずに、足して戻します。" }),
+      el("div", { class: "btns" }, el("button", { class: "ghost", onclick: () => inp.click(), text: "ファイルを選ぶ" }), inp),
+      el("div", { class: "status", id: "restore-status" })),
+    el("section", {},
+      el("h3", { text: "このアプリについて" }),
+      el("p", { text: "ログインはいりません。記録はこの端末のブラウザの中にだけ保存され、どこにも送られません。電波がなくても使えます。" })));
+}
+
+/* ---------- boot ---------- */
+async function load() {
+  state.data.memos = (await getAll("memos")).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  state.data.articles = (await getAll("articles")).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  render();
+}
+$("tab-memos").onclick = () => setTab("memos");
+$("tab-articles").onclick = () => setTab("articles");
+$("q").oninput = render; $("filter").onchange = render;
+$("fab").onclick = () => openSheet(state.tab, null);
+$("close").onclick = closeSheet; $("save").onclick = save;
+$("open-menu").onclick = openMenu; $("close-menu").onclick = closeMenu;
+$("form").addEventListener("submit", e => e.preventDefault());
+(async () => {
+  try {
+    idb = await openDB();
+    state.meta.lastBackup = await getOne("meta", "lastBackup");
+    state.meta.lastChange = await getOne("meta", "lastChange");
+    setTab(lsGet("naze-tab") === "articles" ? "articles" : "memos");
+    await load();
+    navigator.storage?.persist?.();
+  } catch {
+    $("msg").textContent = "この画面では記録を保存できません。プライベートモードをやめて、普通のブラウザ画面で開いてください。"; $("msg").hidden = false;
+  }
+})();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>

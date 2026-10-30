@@ -1,0 +1,16 @@
+{
+  "name": "なぜ?帳",
+  "short_name": "なぜ?帳",
+  "description": "違和感を「なぜ?」で残すメモと、記事を分解するメモ。記録はこの端末の中だけに保存します。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f3ee",
+  "theme_color": "#1f2740",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
