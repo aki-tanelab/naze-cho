@@ -201,7 +201,14 @@ const SCHEMA = {
       { k: "data", label: "データ・事例", hint: "数字、資料、ほかの街や店の例。Xのリプ欄やYouTubeのコメント欄も手がかり", type: "area" },
       { k: "opinion", label: "自分の意見", hint: "今の時点で思うこと", type: "area" },
       { k: "action", label: "今後のアクション", hint: "確かめるには何を調べる・誰に聞く? 疑問形で3つ", type: "area", ph: "・いつから増えた?\n・ほかの観光地でも同じ?\n・地元の人はどう思っている?" },
-      { k: "status", label: "状態", type: "select", options: MEMO_STATUS }
+      { k: "status", label: "状態", type: "select", options: MEMO_STATUS },
+      { later: "深める(記事にすると決めたら)" },
+      { k: "ronten", label: "論点", hint: "記事で答えたい、大きな問い", type: "area" },
+      { k: "common", label: "よくある結論", hint: "みんなが言いそうな答え。これは結論にしない", type: "area" },
+      { k: "sub", label: "サブ論点(仮説)", hint: "答えの候補をいくつも。調べて新しい「なぜ」が出たら足す", type: "area" },
+      { k: "task", label: "タスク設計", hint: "確かめるために調べること・聞く人。立場の違う人や、周りの資料も", type: "area" },
+      { k: "deadline", label: "期限", hint: "例: 3日(1日目 探す/2日目 集める/3日目 読む)", type: "area" },
+      { k: "ready", type: "ready" }
     ],
     listSub: d => d.trigger || d.hypothesis || "",
     countKeys: ["title", "trigger", "hypothesis", "viewpoint", "data", "opinion", "action"]
@@ -246,6 +253,7 @@ SCHEMA.reads = {
   listSub: d => d.oneline || d.fun || d.source || "",
   countKeys: ["oneline", "structure", "fun", "tech", "mimic", "mine", "notes"]
 };
+const READY_CHECKS = ["立てた仮説が、全部確かめられた", "話の筋が通った", "自分で「これは面白い」と思えた"];
 const READ_KEYS = { "一言": "oneline", "構成": "structure", "面白さ": "fun", "技": "tech", "真似": "mimic", "自分の題材": "mine" };
 const READ_FORMAT = `【一言で】
 【構成】(段落ごとの役割を「→」でつなぐ)
@@ -391,6 +399,7 @@ function render() {
         photo ? setImg(el("img", { class: "thumb", alt: "" }), photo) : null),
       el("div", { class: "meta" },
         status ? el("span", { class: "chip" + (status === "記事にした" ? " done" : ""), text: status }) : null,
+        t === "memos" && r.ready?.every(Boolean) ? el("span", { class: "chip done", text: "書ける" }) : null,
         t === "customs" ? el("span", { text: S.countKeys.reduce((n, k) => n + chars(r[k]), 0) + "字" }) : null,
         el("span", { class: "dots", title: `${filled}/${S.countKeys.length}欄`, text: "●".repeat(filled) + "○".repeat(S.countKeys.length - filled) }),
         el("span", { text: fmt(r.createdAt) }))));
@@ -457,6 +466,7 @@ function openSheet(t, row, tpl) {
     if (f.type === "checks") { form.append(checksField(S.tpl, src.checks)); continue; }
     if (f.type === "review") { form.append(reviewBox()); continue; }
     if (f.type === "talk") { form.append(talkBox()); continue; }
+    if (f.type === "ready") { form.append(readyField(src.ready)); continue; }
     const id = "f-" + t + "-" + f.k;
     let input;
     if (f.type === "area") input = el("textarea", { id, name: f.k, placeholder: f.ph || "", class: f.big || f.count ? "big" : null });
@@ -480,10 +490,10 @@ function openSheet(t, row, tpl) {
 function collect() {
   const { t, S } = state.editing, out = {};
   for (const f of S.fields) {
-    if (!f.k || ["photos", "claude", "review", "checks", "talk"].includes(f.type)) continue;
+    if (!f.k || ["photos", "claude", "review", "checks", "talk", "ready"].includes(f.type)) continue;
     out[f.k] = ($("f-" + t + "-" + f.k)?.value ?? "").trim();
   }
-  if (t === "memos") out.photos = state.photos;
+  if (t === "memos") { out.photos = state.photos; out.ready = READY_CHECKS.map((_, i) => !!$("rdy-" + i)?.checked); }
   if (t === "customs") { out.tpl = S.tpl; out.checks = (S.tpl.checks || []).map((_, i) => !!$("chk-" + i)?.checked); }
   return out;
 }
@@ -498,6 +508,14 @@ function updateCounts() {
   const r = $("ratio"); if (!r) return;
   const sum = Object.values(groups).reduce((a, b) => a + b, 0);
   r.textContent = "比率 " + Object.entries(groups).map(([k, v]) => `${k} ${v}字(${sum ? Math.round(v / sum * 100) : 0}%)`).join(" : ");
+}
+function readyField(vals = []) {
+  return el("div", { class: "field" },
+    el("div", { class: "lbl" }, "執筆に進むチェック", el("span", { class: "hint", text: "3つそろったら書く。書きながら新しい疑問が出たら、追加で確かめる" })),
+    el("div", { class: "checks" }, ...READY_CHECKS.map((c, i) => {
+      const cb = el("input", { type: "checkbox", id: "rdy-" + i }); cb.checked = !!vals[i]; cb.addEventListener("change", onEdit);
+      return el("label", { for: "rdy-" + i }, cb, el("span", { text: c }));
+    })));
 }
 function checksField(tpl, vals = []) {
   return el("div", { class: "field" },
@@ -678,9 +696,10 @@ function toMarkdown(t, r) {
   if (r.url) lines.push(`- URL: ${r.url}`);
   if (r.photos?.length) lines.push(`- 写真: ${r.photos.length}枚(アプリ内)`);
   for (const f of S.fields) {
-    if (!f.k || ["title", "source", "url", "status", "photos", "claude", "body", "checks", "review", "talk"].includes(f.k)) continue;
+    if (!f.k || ["title", "source", "url", "status", "photos", "claude", "body", "checks", "review", "talk", "ready"].includes(f.k)) continue;
     if ((r[f.k] || "").trim()) lines.push("", `### ${f.label}`, r[f.k].trim());
   }
+  if (t === "memos" && r.ready?.some(Boolean)) lines.push("", "### 執筆に進むチェック", ...READY_CHECKS.map((c, i) => `- [${r.ready[i] ? "x" : " "}] ${c}`));
   if (t === "customs" && S.tpl.checks?.length) lines.push("", "### 書いた後の確認", ...S.tpl.checks.map((c, i) => `- [${r.checks?.[i] ? "x" : " "}] ${c}`));
   return lines.join("\n");
 }
