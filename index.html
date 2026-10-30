@@ -48,9 +48,9 @@ h1 .q, .fab .q { color: var(--amber); }
 .lede { color: var(--muted); font-size: 13px; margin: 0; }
 .menu-btn { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 13px; border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
 
-.tabs { display: flex; gap: 6px; margin-top: 14px; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; gap: 2px; overflow-x: auto; margin-top: 14px; border-bottom: 1px solid var(--line); }
 .tab { appearance: none; border: 0; background: none; font: inherit; font-weight: 700; color: var(--muted);
-  padding: 10px 12px; border-bottom: 2px solid transparent; cursor: pointer; }
+  padding: 10px 10px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
 .tab[aria-selected="true"] { color: var(--ink); border-color: var(--amber); }
 .tab .n { font-weight: 500; font-size: 12px; margin-left: 4px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
@@ -118,6 +118,16 @@ h1 .q, .fab .q { color: var(--amber); }
 .del { appearance: none; border: 0; background: none; color: var(--danger); font: inherit; cursor: pointer; padding: 6px 0; }
 .status { font-size: 12px; color: var(--muted); min-height: 1.5em; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--paper); padding: 8px 16px; border-radius: 999px; font-size: 13px; z-index: 40; max-width: calc(100% - 32px); }
+.count { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.ratio { position: sticky; bottom: env(safe-area-inset-bottom, 0px); background: var(--navy); color: var(--on-navy); border-radius: 8px; padding: 6px 12px; font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 8px; }
+.checks { display: grid; gap: 8px; }
+.checks label { font-weight: 400; display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.checks input { width: 20px; height: 20px; flex: none; margin-top: 2px; accent-color: var(--amber); }
+.pick-list { display: grid; gap: 10px; padding-top: 12px; }
+.tpl-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.tpl-row b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.menu textarea { font: inherit; font-size: 16px; width: 100%; min-height: 160px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--card); color: var(--ink); }
+.menu pre { margin: 0; font-size: 12px; white-space: pre-wrap; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--muted); }
 .menu p { margin: 0; font-size: 13px; color: var(--muted); }
 .menu section { display: grid; gap: 8px; padding-block: 14px; border-bottom: 1px solid var(--line); }
 .menu h3 { margin: 0; font-size: 15px; }
@@ -138,6 +148,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-memos" aria-selected="true">問い<span class="n" id="n-memos"></span></button>
     <button class="tab" role="tab" id="tab-articles" aria-selected="false">記事の分解<span class="n" id="n-articles"></span></button>
+    <button class="tab" role="tab" id="tab-customs" aria-selected="false">型で書く<span class="n" id="n-customs"></span></button>
   </div>
 
   <div class="tools">
@@ -210,17 +221,44 @@ const SCHEMA = {
     countKeys: ["summary", "learning", "mine", "good", "question", "tryit"]
   }
 };
-const LABELS = Object.fromEntries(Object.entries(SCHEMA).map(([t, S]) => [t, Object.fromEntries(S.fields.filter(f => f.k).map(f => [f.k, f.label]))]));
+SCHEMA.customs = { label: "型で書く", fab: "型で書く" };
+const TABS = ["memos", "articles", "customs"];
+function tplSchema(tpl) {
+  const fields = [{ k: "title", label: "題", req: true, type: "text", hint: "本・作品の名前や、書くものの題" }];
+  tpl.fields.forEach((f, i) => fields.push({ k: "f" + i, label: f.label, hint: f.hint, type: "area", tag: f.tag, count: true }));
+  if (tpl.checks?.length) fields.push({ k: "checks", type: "checks" });
+  fields.push({ k: "review", type: "review" });
+  const keys = tpl.fields.map((_, i) => "f" + i);
+  return { label: tpl.name, fields, tpl, countKeys: keys, listSub: d => keys.map(k => d[k]).find(Boolean) || "" };
+}
+const schemaOf = (t, r) => t === "customs" ? tplSchema(r.tpl) : SCHEMA[t];
+const chars = v => [...(v || "").replace(/\s/g, "")].length;
+function parseTemplate(text) {
+  const tpl = { name: "", note: "", fields: [], checks: [] };
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim().replace(/^[-・*•]\s*/, "");
+    let m;
+    if ((m = line.match(/^(型|名前)\s*[:：]\s*(.+)$/))) tpl.name = m[2].trim();
+    else if ((m = line.match(/^説明\s*[:：]\s*(.+)$/))) tpl.note = m[1].trim();
+    else if ((m = line.match(/^欄\s*[:：]\s*(.+)$/))) {
+      const [label, hint = "", tag = ""] = m[1].split(/[|｜]/).map(x => x.trim());
+      if (label) tpl.fields.push({ label, hint, tag });
+    }
+    else if ((m = line.match(/^確認\s*[:：]\s*(.+)$/))) tpl.checks.push(m[1].trim());
+  }
+  return tpl.name && tpl.fields.length ? tpl : null;
+}
+const LABELS = Object.fromEntries(Object.entries(SCHEMA).filter(([, S]) => S.fields).map(([t, S]) => [t, Object.fromEntries(S.fields.filter(f => f.k).map(f => [f.k, f.label]))]));
 
 /* ---------- storage (IndexedDB, this device only) ---------- */
-const DB_NAME = "naze-cho", DB_VER = 1;
+const DB_NAME = "naze-cho", DB_VER = 2;
 let idb;
 function openDB() {
   return new Promise((res, rej) => {
     const r = indexedDB.open(DB_NAME, DB_VER);
     r.onupgradeneeded = () => {
       const d = r.result;
-      for (const s of ["memos", "articles"]) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: "id" });
+      for (const s of ["memos", "articles", "customs", "templates"]) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: "id" });
       if (!d.objectStoreNames.contains("photos")) d.createObjectStore("photos");
       if (!d.objectStoreNames.contains("meta")) d.createObjectStore("meta");
     };
@@ -243,7 +281,7 @@ const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 
 /* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
-const state = { tab: "memos", data: { memos: [], articles: [] }, editing: null, photos: [], urls: new Map(), meta: {} };
+const state = { tab: "memos", data: { memos: [], articles: [], customs: [] }, templates: [], tplEdit: null, editing: null, photos: [], urls: new Map(), meta: {} };
 function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } }
 function lsSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 function fmt(iso, withTime = true) {
@@ -281,29 +319,35 @@ function setTab(t) {
   state.tab = t;
   $("tab-memos").setAttribute("aria-selected", t === "memos");
   $("tab-articles").setAttribute("aria-selected", t === "articles");
+  $("tab-customs").setAttribute("aria-selected", t === "customs");
   $("fab").replaceChildren(el("span", { class: "q", text: "+" }), " " + SCHEMA[t].fab);
   const f = $("filter"); f.replaceChildren();
   if (t === "memos") { f.hidden = false; f.append(el("option", { value: "", text: "すべての状態" }), ...MEMO_STATUS.map(s => el("option", { value: s, text: s }))); }
+  else if (t === "customs") {
+    const names = [...new Set(state.templates.map(x => x.name).concat(state.data.customs.map(r => r.tpl?.name)).filter(Boolean))];
+    f.hidden = names.length < 2; f.append(el("option", { value: "", text: "すべての型" }), ...names.map(s => el("option", { value: s, text: s })));
+  }
   else f.hidden = true;
   lsSet("naze-tab", t); render();
 }
 function render() {
-  const t = state.tab, S = SCHEMA[t];
-  $("n-memos").textContent = state.data.memos.length || "";
-  $("n-articles").textContent = state.data.articles.length || "";
+  const t = state.tab;
+  for (const x of TABS) $("n-" + x).textContent = state.data[x].length || "";
   renderNotice();
-  const q = $("q").value.trim().toLowerCase(), st = t === "memos" ? $("filter").value : "";
+  const q = $("q").value.trim().toLowerCase(), st = $("filter").hidden ? "" : $("filter").value;
   const rows = state.data[t].filter(r => {
-    if (st && (r.status || "メモ") !== st) return false;
+    if (st && t === "memos" && (r.status || "メモ") !== st) return false;
+    if (st && t === "customs" && r.tpl?.name !== st) return false;
     return !q || Object.values(r).some(v => typeof v === "string" && v.toLowerCase().includes(q));
   });
   const list = $("list"); list.replaceChildren();
   if (!state.data[t].length) { list.append(emptyState(t)); return; }
   if (!rows.length) { list.append(el("p", { class: "example", text: "当てはまる記録がありません。" })); return; }
   for (const r of rows) {
+    const S = schemaOf(t, r);
     const filled = S.countKeys.filter(k => (r[k] || "").trim()).length;
     const photo = (r.photos || [])[0];
-    const status = t === "memos" ? (r.status || "メモ") : null;
+    const status = t === "memos" ? (r.status || "メモ") : t === "customs" ? r.tpl?.name : null;
     list.append(el("button", { class: "item", onclick: () => openSheet(t, r) },
       el("div", { class: "row" },
         el("div", { class: "txt" },
@@ -312,11 +356,17 @@ function render() {
         photo ? setImg(el("img", { class: "thumb", alt: "" }), photo) : null),
       el("div", { class: "meta" },
         status ? el("span", { class: "chip" + (status === "記事にした" ? " done" : ""), text: status }) : null,
+        t === "customs" ? el("span", { text: S.countKeys.reduce((n, k) => n + chars(r[k]), 0) + "字" }) : null,
         el("span", { class: "dots", title: `${filled}/${S.countKeys.length}欄`, text: "●".repeat(filled) + "○".repeat(S.countKeys.length - filled) }),
         el("span", { text: fmt(r.createdAt) }))));
   }
 }
 function emptyState(t) {
+  if (t === "customs") return el("div", { class: "empty" },
+    el("h3", { text: "自分の型で書く・読む" }),
+    el("div", { class: "example", text: "書評やエッセイの型、分解の型など、自分で決めた欄と「書いた後の確認」を登録して使えます。型は、この端末の中にだけ保存されます。" }),
+    el("div", { class: "example", text: state.templates.length ? `登録している型: ${state.templates.map(x => x.name).join("/")}。下の「+ 型で書く」から始めます。` : "まず「書き出し・保存」の「自分の型」から、型を追加してください。" }),
+    state.templates.length ? null : el("button", { class: "ghost", style: "justify-self:start", onclick: () => openMenu("tpl"), text: "型を追加する" }));
   if (t === "memos") return el("div", { class: "empty" },
     el("h3", { text: "帰り道でできる、名探偵の第一歩" }),
     el("ol", {}, el("li", { text: "「あれれ?」と思ったものを1つ、「なぜ〜なのか?」の形でメモする" }),
@@ -330,11 +380,11 @@ function emptyState(t) {
 }
 function renderNotice() {
   const m = $("msg"); m.replaceChildren(); m.hidden = true;
-  const total = state.data.memos.length + state.data.articles.length;
+  const total = TABS.reduce((n, x) => n + state.data[x].length, 0);
   if (!total) return;
   const last = state.meta.lastBackup, changed = state.meta.lastChange;
   const days = last ? Math.floor((Date.now() - new Date(last)) / 864e5) : null;
-  const all = state.data.memos.concat(state.data.articles);
+  const all = TABS.flatMap(x => state.data[x]);
   const oldest = Math.min(...all.map(r => new Date(r.createdAt || Date.now()).getTime()));
   const firstDue = total >= 5 || Date.now() - oldest >= 7 * 864e5;
   if ((!last && firstDue) || (last && changed > last && days >= 7)) {
@@ -345,50 +395,96 @@ function renderNotice() {
 }
 
 /* ---------- sheet ---------- */
-function openSheet(t, row) {
-  const S = SCHEMA[t];
-  const draftKey = "naze-draft-" + t + "-" + (row ? row.id : "new");
+function openSheet(t, row, tpl) {
+  const S = t === "customs" ? tplSchema(row?.tpl || tpl) : SCHEMA[t];
+  const draftKey = "naze-draft-" + t + "-" + (row ? row.id : "new" + (tpl ? "-" + tpl.id : ""));
   const draft = lsGet(draftKey);
   const src = draft || row || {};
-  state.editing = { t, row, draftKey };
+  state.editing = { t, row, draftKey, S };
+  $("save").hidden = false;
   state.photos = [...(src.photos || [])];
-  $("sheet-title").textContent = row ? S.label + "を編集" : "記録を追加";
+  $("sheet-title").textContent = t === "customs" ? S.label : row ? S.label + "を編集" : "記録を追加";
   const form = $("form"); form.replaceChildren();
   if (draft) form.append(el("div", { class: "notice", text: "保存していない書きかけを戻しました。" }));
+  if (S.tpl?.note) form.append(el("div", { class: "hint", style: "padding-top:8px", text: S.tpl.note }));
   if (row) form.append(el("div", { class: "status", text: "記録日時 " + fmt(row.createdAt) + (row.updatedAt && row.updatedAt !== row.createdAt ? "/更新 " + fmt(row.updatedAt) : "") }));
   for (const f of S.fields) {
     if (f.later) { form.append(el("div", { class: "later", text: f.later })); continue; }
     if (f.type === "photos") { form.append(photoField(f)); continue; }
     if (f.type === "claude") { form.append(claudeBox()); continue; }
+    if (f.type === "checks") { form.append(checksField(S.tpl, src.checks)); continue; }
+    if (f.type === "review") { form.append(reviewBox()); continue; }
     const id = "f-" + t + "-" + f.k;
     let input;
-    if (f.type === "area") input = el("textarea", { id, name: f.k, placeholder: f.ph || "", class: f.big ? "big" : null });
+    if (f.type === "area") input = el("textarea", { id, name: f.k, placeholder: f.ph || "", class: f.big || f.count ? "big" : null });
     else if (f.type === "select") input = el("select", { id, name: f.k }, ...f.options.map(o => el("option", { value: o, text: o })));
     else input = el("input", { id, name: f.k, type: f.type === "url" ? "url" : "text", placeholder: f.ph || "" });
     input.value = src[f.k] || (f.type === "select" ? f.options[0] : "");
     input.addEventListener("input", onEdit);
     form.append(el("div", { class: "field" },
       el("label", { for: id }, f.label, f.req ? el("span", { class: "req", text: "必須" }) : null, f.hint ? el("span", { class: "hint", text: f.hint }) : null),
-      input));
+      input, f.count ? el("div", { class: "count", id: "c-" + id }) : null));
   }
+  if (S.tpl?.fields.some(f => f.tag)) form.append(el("div", { class: "ratio", id: "ratio" }));
   form.append(el("div", { class: "btns", style: "padding-top:14px" },
     el("button", { type: "button", class: "ghost", onclick: () => copy(toMarkdown(t, { ...(row || {}), ...collect() }), "Markdownでコピーしました"), text: "この記録をMarkdownでコピー" })));
   if (row) form.append(el("div", { class: "danger-zone", id: "dz" }, el("button", { type: "button", class: "del", onclick: askDelete, text: "この記録を削除" })));
   form.append(el("div", { class: "status", id: "save-status" }));
   $("sheet").hidden = false; document.body.style.overflow = "hidden";
-  updateSave();
+  updateSave(); updateCounts();
   if (!row) setTimeout(() => form.querySelector("input,textarea")?.focus(), 50);
 }
 function collect() {
-  const { t } = state.editing, out = {};
-  for (const f of SCHEMA[t].fields) {
-    if (!f.k || f.type === "photos" || f.type === "claude") continue;
+  const { t, S } = state.editing, out = {};
+  for (const f of S.fields) {
+    if (!f.k || ["photos", "claude", "review", "checks"].includes(f.type)) continue;
     out[f.k] = ($("f-" + t + "-" + f.k)?.value ?? "").trim();
   }
   if (t === "memos") out.photos = state.photos;
+  if (t === "customs") { out.tpl = S.tpl; out.checks = (S.tpl.checks || []).map((_, i) => !!$("chk-" + i)?.checked); }
   return out;
 }
-function onEdit() { lsSet(state.editing.draftKey, collect()); updateSave(); }
+function onEdit() { lsSet(state.editing.draftKey, collect()); updateSave(); updateCounts(); }
+function updateCounts() {
+  const { t, S } = state.editing || {}; if (t !== "customs") return;
+  const groups = {};
+  S.fields.filter(f => f.count).forEach(f => {
+    const n = chars($("f-" + t + "-" + f.k)?.value); const c = $("c-f-" + t + "-" + f.k); if (c) c.textContent = n + "字";
+    if (f.tag) groups[f.tag] = (groups[f.tag] || 0) + n;
+  });
+  const r = $("ratio"); if (!r) return;
+  const sum = Object.values(groups).reduce((a, b) => a + b, 0);
+  r.textContent = "比率 " + Object.entries(groups).map(([k, v]) => `${k} ${v}字(${sum ? Math.round(v / sum * 100) : 0}%)`).join(" : ");
+}
+function checksField(tpl, vals = []) {
+  return el("div", { class: "field" },
+    el("div", { class: "lbl" }, "書いた後の確認", el("span", { class: "hint", text: "当てはまったら、チェック" })),
+    el("div", { class: "checks" }, ...tpl.checks.map((c, i) => {
+      const cb = el("input", { type: "checkbox", id: "chk-" + i }); cb.checked = !!vals[i]; cb.addEventListener("change", onEdit);
+      return el("label", { for: "chk-" + i }, cb, el("span", { text: c }));
+    })));
+}
+function reviewBox() {
+  return el("div", { class: "box" },
+    el("h3", { text: "Claudeに見てもらう" }),
+    el("div", { class: "hint", text: "型と確認の基準と、書いた文をまとめてコピーします。Claudeのアプリに貼ってください。" }),
+    el("div", { class: "btns" }, el("button", { type: "button", class: "ghost", onclick: () => copy(reviewPrompt(collect(), state.editing.S), "コピーしました。Claudeに貼ってください"), text: "Claudeに見てもらう文をコピー" })));
+}
+function reviewPrompt(d, S) {
+  const body = S.tpl.fields.map((f, i) => `【${f.label}】${f.tag ? "(" + f.tag + ")" : ""}\n${d["f" + i] || "(未記入)"}`).join("\n\n");
+  const checks = (S.tpl.checks || []).map((c, i) => `- ${c}(自分の判定: ${d.checks?.[i] ? "OK" : "まだ"})`).join("\n");
+  return `次の文章を、私が決めた型「${S.tpl.name}」と、書いた後の確認の基準で見てください。
+- 欄ごとに、型のねらいどおりに書けているかを1〜2行で。
+- 確認の基準ごとに、満たしているかと、その理由を1行で。私の判定と違うときは、そう書いてください。
+- 文章の意味と持ち味は変えないでください。直すなら、全部を書き直さずに、1〜2か所だけ案として出してください。
+${S.tpl.note ? "\n型の説明: " + S.tpl.note + "\n" : ""}
+確認の基準:
+${checks || "(なし)"}
+
+題: ${d.title}
+
+${body}`;
+}
 function updateSave() { const { t } = state.editing || {}; $("save").disabled = !t || !($("f-" + t + "-title")?.value || "").trim(); }
 function closeSheet() { $("sheet").hidden = true; document.body.style.overflow = ""; state.editing = null; }
 
@@ -489,15 +585,16 @@ ${mine}`;
 
 /* ---------- export / backup ---------- */
 function toMarkdown(t, r) {
-  const S = SCHEMA[t], L = LABELS[t];
+  const S = schemaOf(t, r);
   const lines = [`## ${r.title || "(タイトルなし)"}`, "", `- 種類: ${S.label}` + (r.status ? ` / 状態: ${r.status}` : ""), `- 記録日時: ${fmt(r.createdAt) || fmt(new Date().toISOString())}`];
   if (r.source) lines.push(`- 書いた人・媒体: ${r.source}`);
   if (r.url) lines.push(`- URL: ${r.url}`);
   if (r.photos?.length) lines.push(`- 写真: ${r.photos.length}枚(アプリ内)`);
   for (const f of S.fields) {
-    if (!f.k || ["title", "source", "url", "status", "photos", "claude", "body"].includes(f.k)) continue;
-    if ((r[f.k] || "").trim()) lines.push("", `### ${L[f.k]}`, r[f.k].trim());
+    if (!f.k || ["title", "source", "url", "status", "photos", "claude", "body", "checks", "review"].includes(f.k)) continue;
+    if ((r[f.k] || "").trim()) lines.push("", `### ${f.label}`, r[f.k].trim());
   }
+  if (t === "customs" && S.tpl.checks?.length) lines.push("", "### 書いた後の確認", ...S.tpl.checks.map((c, i) => `- [${r.checks?.[i] ? "x" : " "}] ${c}`));
   return lines.join("\n");
 }
 function allMarkdown(t) {
@@ -507,7 +604,7 @@ function allMarkdown(t) {
 const blobToData = b => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
 async function dataToBlob(u) { return (await fetch(u)).blob(); }
 async function backup(withPhotos) {
-  const out = { app: "naze-cho", version: 1, exportedAt: new Date().toISOString(), memos: state.data.memos, articles: state.data.articles, photos: {} };
+  const out = { app: "naze-cho", version: 1, exportedAt: new Date().toISOString(), memos: state.data.memos, articles: state.data.articles, customs: state.data.customs, templates: state.templates, photos: {} };
   if (withPhotos) {
     const ids = new Set(state.data.memos.flatMap(r => r.photos || []));
     for (const id of ids) { const b = await getOne("photos", id); if (b) out.photos[id] = await blobToData(b); }
@@ -527,15 +624,18 @@ async function restore(file) {
     const d = JSON.parse(await file.text());
     if (d.app !== "naze-cho") throw new Error("not ours");
     let n = 0;
-    for (const t of ["memos", "articles"]) for (const r of d[t] || []) {
-      const cur = state.data[t].find(x => x.id === r.id);
+    for (const t of [...TABS, "templates"]) for (const r of d[t] || []) {
+      const cur = (t === "templates" ? state.templates : state.data[t]).find(x => x.id === r.id);
       if (!cur || (r.updatedAt || "") > (cur.updatedAt || "")) { await put(t, r); n++; }
     }
     for (const [id, u] of Object.entries(d.photos || {})) if (!(await getOne("photos", id))) await put("photos", await dataToBlob(u), id);
     await markChanged(); await load(); st.textContent = `${n}件を戻しました(同じ記録は、新しいほうを残しています)。`;
   } catch { st.textContent = "このファイルは読み込めませんでした。なぜ?帳で保存したバックアップ(.json)を選んでください。"; }
 }
-function openMenu() { renderMenu(); $("menu").hidden = false; document.body.style.overflow = "hidden"; }
+function openMenu(focus) {
+  renderMenu(); $("menu").hidden = false; document.body.style.overflow = "hidden";
+  if (focus === "tpl") setTimeout(() => $("tpl-section")?.scrollIntoView({ block: "start" }), 50);
+}
 function closeMenu() { $("menu").hidden = true; document.body.style.overflow = ""; }
 function renderMenu() {
   const inp = el("input", { type: "file", accept: "application/json,.json", style: "display:none" });
@@ -546,7 +646,9 @@ function renderMenu() {
       el("p", { text: "Claudeに貼って、整理や記事化の相談に使えます。写真は入りません。" }),
       el("div", { class: "btns" },
         el("button", { class: "ghost", onclick: () => copy(allMarkdown("memos")), disabled: !state.data.memos.length, text: `問いを全部(${state.data.memos.length}件)` }),
-        el("button", { class: "ghost", onclick: () => copy(allMarkdown("articles")), disabled: !state.data.articles.length, text: `記事の分解を全部(${state.data.articles.length}件)` }))),
+        el("button", { class: "ghost", onclick: () => copy(allMarkdown("articles")), disabled: !state.data.articles.length, text: `記事の分解を全部(${state.data.articles.length}件)` }),
+        el("button", { class: "ghost", onclick: () => copy(allMarkdown("customs")), disabled: !state.data.customs.length, text: `型で書いたものを全部(${state.data.customs.length}件)` }))),
+    tplSection(),
     el("section", {},
       el("h3", { text: "バックアップを保存" }),
       el("p", { text: "記録はこの端末の中だけにあります。ブラウザのデータを消したり機種変更したりすると消えるので、ときどき保存して、Googleドライブなどに置いてください。" }),
@@ -564,16 +666,70 @@ function renderMenu() {
       el("p", { text: "ログインはいりません。記録はこの端末のブラウザの中にだけ保存され、どこにも送られません。電波がなくても使えます。" })));
 }
 
+/* ---------- my templates ---------- */
+const TPL_EXAMPLE = `型: 3行日記
+説明: 寝る前に、その日のことを3行で
+欄: 出来事 | いつ、どこで、誰と、何をしたか | 場面
+欄: 気づき | 1〜2文 | 考え
+欄: 明日やること | 1つだけ
+確認: 場面が目に浮かぶか
+確認: 気づきは、その出来事からしか出てこないものか`;
+function tplSection() {
+  const ta = el("textarea", { id: "tpl-text", placeholder: TPL_EXAMPLE });
+  ta.value = state.tplEdit?.text || "";
+  const st = el("div", { class: "status", id: "tpl-status" });
+  return el("section", { id: "tpl-section" },
+    el("h3", { text: "自分の型" }),
+    el("p", { text: "「型で書く」タブで使う型です。この端末の中にだけ保存されます。下の形で書いて(または貼って)、「型を保存」を押してください。" }),
+    el("pre", { text: "型: 型の名前\n説明: (なくてもいい)\n欄: 見出し | ヒント | 比率の印(なくてもいい)\n確認: 書いた後に確かめること\n\n「欄」は何行でも。比率の印を同じ言葉にした欄どうしで、字数の割合を出します。" }),
+    ...state.templates.map(x => el("div", { class: "tpl-row" },
+      el("b", { text: x.name }), el("span", { class: "hint", text: `欄${x.fields.length}・確認${x.checks.length}` }),
+      el("button", { class: "ghost", onclick: () => { state.tplEdit = x; renderMenu(); $("tpl-text").focus(); }, text: "直す" }),
+      el("button", { class: "del", onclick: e => askTplDelete(e.currentTarget, x), text: "削除" }))),
+    state.tplEdit ? el("p", { text: `「${state.tplEdit.name}」を直しています。` }) : null,
+    ta,
+    el("div", { class: "btns" },
+      el("button", { class: "ghost", onclick: saveTemplate, text: "型を保存" }),
+      state.tplEdit ? el("button", { class: "ghost", onclick: () => { state.tplEdit = null; renderMenu(); }, text: "直すのをやめる" }) : null),
+    st);
+}
+async function saveTemplate() {
+  const text = $("tpl-text").value.trim();
+  const tpl = parseTemplate(text);
+  if (!tpl) { $("tpl-status").textContent = "「型: 名前」と、「欄: 見出し」を1つ以上書いてください。"; return; }
+  const cur = state.tplEdit;
+  await put("templates", { ...tpl, text, id: cur?.id || "t" + newId(), createdAt: cur?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+  state.tplEdit = null; await markChanged(); await load(); renderMenu(); toast(`型「${tpl.name}」を保存しました`);
+}
+function askTplDelete(btn, x) {
+  btn.replaceWith(el("span", { class: "hint", text: "消しますか?(書いたものは残ります)" }),
+    el("button", { class: "del", style: "font-weight:700", onclick: async () => { await del("templates", x.id); await load(); renderMenu(); toast("型を削除しました"); }, text: "削除する" }));
+}
+function pickTemplate() {
+  if (!state.templates.length) { toast("先に型を追加してください"); openMenu("tpl"); return; }
+  if (state.templates.length === 1) { openSheet("customs", null, state.templates[0]); return; }
+  state.editing = null;
+  $("sheet-title").textContent = "型を選ぶ"; $("save").hidden = true;
+  $("form").replaceChildren(el("div", { class: "pick-list" }, ...state.templates.map(x =>
+    el("button", { type: "button", class: "item", onclick: () => openSheet("customs", null, x) },
+      el("div", { class: "t", text: x.name }), x.note ? el("div", { class: "sub", text: x.note }) : null,
+      el("div", { class: "meta", text: x.fields.map(f => f.label).join(" / ") })))));
+  $("sheet").hidden = false; document.body.style.overflow = "hidden";
+}
+
 /* ---------- boot ---------- */
 async function load() {
   state.data.memos = (await getAll("memos")).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   state.data.articles = (await getAll("articles")).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-  render();
+  state.data.customs = (await getAll("customs")).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  state.templates = (await getAll("templates")).sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+  if (state.tab === "customs") setTab("customs"); else render();
 }
 $("tab-memos").onclick = () => setTab("memos");
 $("tab-articles").onclick = () => setTab("articles");
+$("tab-customs").onclick = () => setTab("customs");
 $("q").oninput = render; $("filter").onchange = render;
-$("fab").onclick = () => openSheet(state.tab, null);
+$("fab").onclick = () => state.tab === "customs" ? pickTemplate() : openSheet(state.tab, null);
 $("close").onclick = closeSheet; $("save").onclick = save;
 $("open-menu").onclick = openMenu; $("close-menu").onclick = closeMenu;
 $("form").addEventListener("submit", e => e.preventDefault());
@@ -582,7 +738,7 @@ $("form").addEventListener("submit", e => e.preventDefault());
     idb = await openDB();
     state.meta.lastBackup = await getOne("meta", "lastBackup");
     state.meta.lastChange = await getOne("meta", "lastChange");
-    setTab(lsGet("naze-tab") === "articles" ? "articles" : "memos");
+    setTab(TABS.includes(lsGet("naze-tab")) ? lsGet("naze-tab") : "memos");
     await load();
     navigator.storage?.persist?.();
   } catch {
